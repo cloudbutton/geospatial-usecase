@@ -1,0 +1,22 @@
+# Lithops dependencies
+lithops
+boto3
+s3fs
+
+# Jupyterlab dependencies
+jupyter
+ipykernel
+
+# geospatial dependencies
+pandas
+numpy
+scipy
+Shapely
+rasterio
+sentinelsat
+grass-session
+rasterio
+Fiona
+rio-cogeo
+matplotlib
+mgrs
