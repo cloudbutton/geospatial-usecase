@@ -1,0 +1,26 @@
+# lithops dependencies
+awslambdaric
+boto3
+redis
+httplib2
+requests
+numpy
+scipy
+pandas
+pika
+cloudpickle
+ps-mem
+tblib
+
+# geospatial modules
+pandas
+scipy
+Shapely
+rasterio
+sentinelsat
+grass-session
+rasterio
+Fiona
+rio-cogeo
+GDAL==2.4.4
+matplotlib
