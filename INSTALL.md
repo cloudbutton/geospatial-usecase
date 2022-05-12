@@ -33,4 +33,13 @@
 ```
 
 8. Select the geospatial environment kernel created:
+
 ![jupyter kernel selection](.images/install-jupyter.png)
+
+- To activate the geospatial conda environment in new session:
+
+```
+$ source ~/anaconda3/bin/activate
+(base) $ conda activate geospatial
+(geospatial) $ jupyter lab
+```
