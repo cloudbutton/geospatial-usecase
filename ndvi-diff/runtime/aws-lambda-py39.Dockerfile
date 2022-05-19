@@ -2,7 +2,10 @@ FROM python:3.9-buster
 
 RUN apt-get update && \
         apt-get upgrade -y && \
-        apt-get install -y --no-install-recommends \
+        apt-get install software-properties-common -y
+        
+RUN add-apt-repository ppa:ubuntugis/ppa && \
+        apt-get install -y \
         build-essential \
         gcc \
         grass \
@@ -23,8 +26,16 @@ RUN apt-get update && \
 ENV CPLUS_INCLUDE_PATH=/usr/include/gdal
 ENV C_INCLUDE_PATH=/usr/include/gdal
 
+RUN ogrinfo --version
+
+RUN gdal-config --version
+
+RUN pip install --upgrade --no-cache-dir setuptools==58.0.2 pip
+
 COPY requirements.txt requirements.txt
-RUN pip install --upgrade pip six && pip install --no-cache-dir -r requirements.txt
+RUN export CPLUS_INCLUDE_PATH=/usr/include/gdal && \
+    export C_INCLUDE_PATH=/usr/include/gdal && \
+    pip install --upgrade pip six && pip install --no-cache-dir -r requirements.txt
 
 # Define custom function directory
 ARG FUNCTION_DIR="/function"
