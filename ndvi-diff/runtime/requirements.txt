@@ -22,5 +22,5 @@ grass-session
 rasterio
 Fiona
 rio-cogeo
-GDAL==2.4.4
+pygdal==2.4.0.4
 matplotlib
