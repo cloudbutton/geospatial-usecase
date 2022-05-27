@@ -12,14 +12,14 @@
 (base) $ conda activate geospatial
 ```
 
-4. Install python dependencies:
+4. Install conda dependencies:
 ```
-(geospatial) $ pip install -r requirements.txt
+(geospatial) $ conda install -c conda-forge pdal python-pdal gdal
 ```
 
-5. Install conda dependencies:
+5. Install python dependencies:
 ```
-(geospatial) $ conda install -c conda-forge ipywidgets ipyleaflet pdal python-pdal gdal
+(geospatial) $ pip install -r requirements.txt
 ```
 
 6. Install conda kernel for jupyter lab:
