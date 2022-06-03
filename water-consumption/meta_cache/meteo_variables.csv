@@ -1,27 +1,27 @@
-,codi_variable,nom_variable,unitat,acronim,codi_tipus_var,decimals
-0,72,Precipitació màxima en 1 minut,mm,PPTx1min,DAT,1
-1,3,Humitat relativa màxima,%,HRx,DAT,0
-2,30,Velocitat del vent a 10 m (esc.),m/s,VV10,DAT,1
-3,31,Direcció de vent 10 m (m. 1),°,DV10,DAT,0
-4,32,Temperatura,°C,T,DAT,1
-5,33,Humitat relativa,%,HR,DAT,0
-6,34,Pressió atmosfèrica,hPa,P,DAT,1
-7,35,Precipitació,mm,PPT,DAT,1
-8,36,Irradiància solar global,W/m²,RS,DAT,0
-9,38,Gruix de neu a terra,mm,GNEU,DAT,0
-10,40,Temperatura màxima,°C,Tx,DAT,1
-11,42,Temperatura mínima,°C,Tn,DAT,1
-12,44,Humitat relativa mínima,%,HRn,DAT,0
-13,46,Velocitat del vent a 2 m (esc.),m/s,VV2,DAT,1
-14,47,Direcció del vent a 2 m (m. 1),°,DV2,DAT,0
-15,48,Velocitat del vent a 6 m (esc.),m/s,VV6,DAT,1
-16,49,Direcció del vent a 6 m (m. 1),°,DV6,DAT,0
-17,50,Ratxa màxima del vent a 10 m,m/s,VVx10,DAT,1
-18,51,Direcció de la ratxa màxima del vent a 10 m,°,DVVx10,DAT,0
-19,53,Ratxa màxima del vent a 6 m,m/s,VVx6,DAT,1
-20,54,Direcció de la ratxa màxima del vent a 6 m,°,DVVx6,DAT,0
-21,56,Ratxa màxima del vent a 2 m,m/s,VVx2,DAT,1
-22,57,Direcció de la ratxa màxima del vent a 2 m,°,DVVx2,DAT,0
-23,59,Irradiància neta,W/m²,RN,DAT,0
-24,1,Pressió atmosfèrica màxima,hPa,Px,DAT,1
-25,2,Pressió atmosfèrica mínima,hPa,Pn,DAT,1
+codi_variable,nom_variable,unitat,acronim,codi_tipus_var,decimals
+72,Precipitació màxima en 1 minut,mm,PPTx1min,DAT,1
+3,Humitat relativa màxima,%,HRx,DAT,0
+30,Velocitat del vent a 10 m (esc.),m/s,VV10,DAT,1
+31,Direcció de vent 10 m (m. 1),°,DV10,DAT,0
+32,Temperatura,°C,T,DAT,1
+33,Humitat relativa,%,HR,DAT,0
+34,Pressió atmosfèrica,hPa,P,DAT,1
+35,Precipitació,mm,PPT,DAT,1
+36,Irradiància solar global,W/m²,RS,DAT,0
+38,Gruix de neu a terra,mm,GNEU,DAT,0
+40,Temperatura màxima,°C,Tx,DAT,1
+42,Temperatura mínima,°C,Tn,DAT,1
+44,Humitat relativa mínima,%,HRn,DAT,0
+46,Velocitat del vent a 2 m (esc.),m/s,VV2,DAT,1
+47,Direcció del vent a 2 m (m. 1),°,DV2,DAT,0
+48,Velocitat del vent a 6 m (esc.),m/s,VV6,DAT,1
+49,Direcció del vent a 6 m (m. 1),°,DV6,DAT,0
+50,Ratxa màxima del vent a 10 m,m/s,VVx10,DAT,1
+51,Direcció de la ratxa màxima del vent a 10 m,°,DVVx10,DAT,0
+53,Ratxa màxima del vent a 6 m,m/s,VVx6,DAT,1
+54,Direcció de la ratxa màxima del vent a 6 m,°,DVVx6,DAT,0
+56,Ratxa màxima del vent a 2 m,m/s,VVx2,DAT,1
+57,Direcció de la ratxa màxima del vent a 2 m,°,DVVx2,DAT,0
+59,Irradiància neta,W/m²,RN,DAT,0
+1,Pressió atmosfèrica màxima,hPa,Px,DAT,1
+2,Pressió atmosfèrica mínima,hPa,Pn,DAT,1
