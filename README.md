@@ -4,13 +4,17 @@ This repository contains the workflows developed during the course of the Cloudb
 
 ## Workflows
 
-### 1. Lidar Partitioner
+### 1. LiDAR Partitioner
 
-### 2. Wildfire risk assessment
+### 2. Model creation
 
-### 3. NDVI
+### 4. Sentinel satellital image processing
 
-### 4. Water consumption
+### 3. NDVI Calculation
+
+### 4. Crops Water Consumption Calculation
+
+### 5. Biomass Calculation
 
 ## General overview
 
