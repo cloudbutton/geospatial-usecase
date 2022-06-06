@@ -1,5 +1,7 @@
 # Installation instructions
 
+Note: These instructions are intended for use with Linux systems.
+
 1. [Install anaconda](https://docs.anaconda.com/anaconda/install/linux/)
 
 2. Create a new conda environment:
@@ -36,7 +38,7 @@
 
 ![jupyter kernel selection](.images/install-jupyter.png)
 
-- To activate the geospatial conda environment in new session:
+- To activate the geospatial conda environment in a new session:
 
 ```
 $ source ~/anaconda3/bin/activate
