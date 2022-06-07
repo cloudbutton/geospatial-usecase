@@ -12,6 +12,7 @@ numpy
 cloudpickle
 ps-mem
 tblib
+boto3
 
 # Geospatial modules
 pandas
