@@ -3,16 +3,16 @@ import datetime
 from ipyleaflet import Map, Polygon, basemaps
 
 
-def pick_date_range():
+def pick_date_range(default_from=datetime.date(year=2019, month=5, day=1), default_to=datetime.date(year=2019, month=5, day=15)):
     from_day = widgets.DatePicker(
         description='From day',
         disabled=False,
-        value=datetime.date(2019, 5, 1)
+        value=default_from
     )
     to_day = widgets.DatePicker(
         description='To day',
         disabled=False,
-        value=datetime.date(2019, 5, 15)
+        value=default_to
     )
 
     display(from_day)
