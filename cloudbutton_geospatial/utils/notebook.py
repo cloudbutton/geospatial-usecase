@@ -1,5 +1,5 @@
 import ipywidgets as widgets
-from datetime import date
+import datetime
 from ipyleaflet import Map, Polygon, basemaps
 
 
@@ -7,18 +7,28 @@ def pick_date_range():
     from_day = widgets.DatePicker(
         description='From day',
         disabled=False,
-        value=date(2019, 9, 17)
+        value=datetime.date(2019, 9, 17)
     )
     to_day = widgets.DatePicker(
         description='To day',
         disabled=False,
-        value=date(2021, 9, 16)
+        value=datetime.date(2021, 9, 16)
     )
 
     display(from_day)
     display(to_day)
 
     return from_day, to_day
+
+
+def date_picker(default=None):
+    date = widgets.DatePicker(
+        description='Pick a Date',
+        disabled=False,
+        value=default
+    )
+    display(date)
+    return date
 
 
 def pick_percentage_slider():
