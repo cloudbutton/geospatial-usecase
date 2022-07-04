@@ -24,8 +24,8 @@ In order to execute the notebooks with your own files you will need to change th
 	```python
    	bucketPath = '<Path to the files to be partitioned>'			# Example: 'cos://lithops-testing/Catalonia/'
    	bucketName = '<Name of the bucket>'					# Example: 'lithops-testing'
-   	partition_size = '<Number of points in each partition>'		# Example: 500_000
-   	buffer_size = '<Buffer size>'					# Example: 5
+   	partition_size = '<Number of points in each partition>'			# Example: 500_000
+   	buffer_size = '<Buffer size>'						# Example: 5
 	```
 
 2. In the case of regional_partitioner:
@@ -33,5 +33,5 @@ In order to execute the notebooks with your own files you will need to change th
 	```python
    	bucketPath = '<Path to the files to be partitioned>'			# Example: 'cos://lithops-testing/Catalonia/'
    	bucketName = '<Name of the bucket>'					# Example: 'lithops-testing'
-	square_splits = 							# Example: 2
+	square_splits = '<Number of splits>'					# Example: 2
 	```
