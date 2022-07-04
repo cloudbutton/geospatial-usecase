@@ -15,7 +15,7 @@ Terrain models calculation computes the models DSM, DEM, CHM, FCC, aspect and sl
    
 3. Lithops has default runtimes, but none has all the required packages, so you have to create your runtime. In the directory [runtime](https://github.com/cloudbutton/geospatial-usecase/tree/main/terrain-models-calculation/runtime), there is the runtime you will need. To configure it, follow the steps in the *Custom runtime* section in [Lithops runtime for IBM Cloud Functions](https://github.com/lithops-cloud/lithops/blob/master/runtime/ibm_cf/README.md).
 
-### TerrainModelsCalculation 
+### Terrain models calculation 
 1. Configure your `LOCAL_INPUT_DIR` (the directory where is the data you want to upload), `DATA_BUCKET` (name of the storage bucket) and `INPUT_DATA_PREFIX` (the path where the data input will be stored in the cloud).
 
     ```python
