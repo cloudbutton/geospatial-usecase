@@ -1,0 +1,34 @@
+# Lithops modules
+flask
+pika
+glob2
+ibm-cos-sdk
+redis
+gevent
+requests
+PyYAML
+kubernetes
+numpy
+cloudpickle
+ps-mem
+tblib
+
+# Geospatial modules
+pandas
+scipy
+Shapely
+# rasterio
+sentinelsat
+grass-session
+rasterio
+Fiona
+rio-cogeo
+joblib 
+numpy
+scikit-learn
+pandas
+geopandas
+joblib
+earthpy
+packaging
+cython

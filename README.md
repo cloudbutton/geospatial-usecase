@@ -44,6 +44,7 @@ Use case of serverless geospatial data processing where we demonstrate how, than
 - Daniel Alejandro Coll (danielalejandro.coll@urv.cat)
 - Sergi Alberich (sergi.alberich@urv.cat)
 
+
 Former authors: Answare Tech, [Matrix Foundation](https://fundacionmatrix.es/)
 
 
