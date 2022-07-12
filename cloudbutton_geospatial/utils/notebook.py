@@ -3,16 +3,16 @@ import datetime
 from ipyleaflet import Map, Polygon, basemaps
 
 
-def pick_date_range():
+def pick_date_range(default_from=datetime.date(year=2019, month=5, day=1), default_to=datetime.date(year=2019, month=5, day=15)):
     from_day = widgets.DatePicker(
         description='From day',
         disabled=False,
-        value=datetime.date(2019, 9, 17)
+        value=default_from
     )
     to_day = widgets.DatePicker(
         description='To day',
         disabled=False,
-        value=datetime.date(2021, 9, 16)
+        value=default_to
     )
 
     display(from_day)
@@ -31,9 +31,9 @@ def date_picker(default=None):
     return date
 
 
-def pick_percentage_slider():
+def pick_percentage_slider(default=15):
     percentage = widgets.IntSlider(
-        value=0,
+        value=default,
         min=0,
         max=100,
         step=1,
@@ -48,9 +48,11 @@ def pick_percentage_slider():
     return percentage
 
 
-class MapRegion():
-    def __init__(self):
-        self.map = Map(center=(39.60595289727246, -122.82804126978336), zoom=9, basemap=basemaps.OpenStreetMap.HOT)
+# cali center = (39.60595289727246, -122.82804126978336)
+
+class MapRegion:
+    def __init__(self, center=(41.8204600, 1.8676800), zoom=9):
+        self.map = Map(center=center, zoom=zoom, basemap=basemaps.OpenStreetMap.HOT)
 
         polygon = Polygon(
             locations=[[]],
