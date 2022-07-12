@@ -40,6 +40,7 @@ Use case of serverless geospatial data processing where we demonstrate how, than
 - Aitor Arjona (aitor.arjona@urv.cat)
 - Sergi Domingo (sergi.domingo@urv.cat)
 - Arnau Gabriel (arnau.gabriel@urv.cat)
+- Sara Lanuza (sara.lanuza@urv.cat)
 
 Former authors: Answare Tech, [Matrix Foundation](https://fundacionmatrix.es/)
 
