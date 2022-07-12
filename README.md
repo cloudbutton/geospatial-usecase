@@ -22,7 +22,9 @@ This repository contains the workflows developed during the course of the Cloudb
 
 - Josep Sampé (josep.sampe@urv.cat)
 - Aitor Arjona (aitor.arjona@urv.cat)
-- Sergi Domingo (sergi.domingo@urv.cat
+- Sergi Domingo (sergi.domingo@urv.cat)
+- Daniel Alejandro Coll (danielalejandro.coll@urv.cat)
+- Sergi Alberich (sergi.alberich@urv.cat)
 
 Former authors: Answare Tech, [Matrix Foundation](https://fundacionmatrix.es/)
 
