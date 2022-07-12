@@ -10,7 +10,7 @@ All workflows utilize [Lithops](https://lithops.cloud) to easily deploy and run 
 
 ## Notebooks
 
-### 1. [LiDAR Partitioner](lidar-partitioner/)
+### 1. [LiDAR Partitioner](lidar-partitioner/) and [erformance analysis](lidar-partitioner-cloud-performance/)
 
 A novel tool to partition LiDAR files based on the denisty of points. The partitions are simmilar in size, which is convenient for serverless processing, as task granularity defines the execution time and cost.
 
