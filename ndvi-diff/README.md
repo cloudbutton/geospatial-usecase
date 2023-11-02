@@ -4,10 +4,10 @@ This notebook contains a NDVI calculation process that consumes Sentinel2 satell
 
 ## Requisites
 
-    - An AWS Account
-    - Lithops 2.9.0
-    - botocore 1.31.61
-    - conda environment described in [here](https://github.com/cloudbutton/geospatial-usecase/blob/main/INSTALL.md)
+- An AWS Account
+- Lithops 2.9.0
+- botocore 1.31.61
+- conda environment described in [here](https://github.com/cloudbutton/geospatial-usecase/blob/main/INSTALL.md)
 
 ## Instructions
 
