@@ -13,7 +13,7 @@ This notebook contains a model calculation process that consumes laz files. You 
 
 To execute this notebook you need:
 
-1. Clone the repository of [cloudbutton_geospatial](https://github.com/cloudbutton/geospatial-usecase/tree/main/cloudbutton_geospatial).
+1. Clone the repository of [cloudbutton_geospatial](https://github.com/cloudbutton/geospatial-usecase/).
 2. The conda environment required is described in described in [here](https://github.com/cloudbutton/geospatial-usecase/blob/main/INSTALL.md).
 
 3. Setup Lithops to work with [AWS Lambda](https://lithops-cloud.github.io/docs/source/compute_config/aws_lambda.html).
