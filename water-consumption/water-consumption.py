@@ -53,6 +53,7 @@ DAY_OF_YEAR = 135
 
 storage = lithops.storage.Storage(backend=STORAGE_BACKEND)
 fexec = lithops.FunctionExecutor(backend=COMPUTE_BACKEND, storage=STORAGE_BACKEND, runtime_memory=RUNTIME_MEMORY)
+fexec1 = lithops.FunctionExecutor(backend=COMPUTE_BACKEND, storage=STORAGE_BACKEND, runtime_memory=RUNTIME_MEMORY, worker_processes=1)
 
 s_time = time.time()
 
@@ -124,8 +125,11 @@ def asc_to_geotiff(obj, storage):
     
     return out_key
 
+st1 = time.time()
 fs_cog = fexec.map(asc_to_geotiff, os.path.join(STORAGE_PREFIX, DATA_BUCKET, DTM_ASC_PREFIX))
 _, _ = fexec.wait(fs=fs_cog)
+time_stage_1 = time.time() - st1
+print(f'Stage 1: {time_stage_1}')
 dtm_geotiff_keys = storage.list_keys(bucket=DATA_BUCKET, prefix=DTM_GEOTIFF_PREFIX)
 print(dtm_geotiff_keys)
 
@@ -136,8 +140,11 @@ def get_tile_meta(obj):
         x2, y2 = src.profile['transform'] * (src.profile['width'], src.profile['height'])
     return tile_id, (x1, y1), (x2, y2)
 
+st2 = time.time()
 fs_meta = fexec.map(get_tile_meta, os.path.join(STORAGE_PREFIX, DATA_BUCKET, DTM_GEOTIFF_PREFIX))
 tiles_meta = fexec.get_result(fs=fs_meta)
+time_stage_2 = time.time() - st2
+print(f'Stage 2: {time_stage_2}')
 print(tiles_meta)
 
 def data_chunker(obj, n_splits, block_x, block_y, storage):
@@ -178,18 +185,21 @@ iterdata = [(os.path.join(STORAGE_PREFIX, DATA_BUCKET, tile), SPLITS, i, j)
 print(f'Chunking {len(dtm_geotiff_keys)} tiles in {SPLITS * SPLITS} chunks each using {len(iterdata)} functions')
 print(f"\nIterdata: {iterdata}\n")
 
+st3 = time.time()
 chunker_fs = fexec.map(data_chunker, iterdata)
 chunks = fexec.get_result(fs=chunker_fs)
-print(chunks)
+time_stage_3 = time.time() - st3
+print(f'Stage 3: {time_stage_3}')
+#print(chunks)
 
 def compute_solar_irradiation(inputFile, outputFile, crs='32630'):
     # Define grass working set
-    GRASS_GISDB = '/home/docker/grassdata'
-    GRASS_LOCATION = f'GEOPROCESSING'
+    GRASS_GISDB = 'grassdata'
+    GRASS_LOCATION = 'GEOPROCESSING'
     GRASS_MAPSET = 'PERMANENT'
     GRASS_ELEVATIONS_FILENAME = 'ELEVATIONS'
 
-    os.environ['GRASSBIN'] = 'grass'
+    os.environ['GRASSBIN'] = 'grass76'
 
     from grass_session import Session
     import grass.script as gscript
@@ -328,41 +338,65 @@ def map_interpolation(tile_key, block_x, block_y, chunk_cloudobject, data_field,
 
     return [(tile_key, data_field, block_x, block_y, co)]
 
-res_rad = []
-for i in range(len(chunks)):
-   rst = time.time() 
-   fs_rad = fexec.map(radiation_interpolation, chunks[i], runtime_memory=2048)
-   res_rad.append(fexec.get_result(fs=fs_rad))
-   r_el = time.time() - rst
-   print(f'Iteration {i} time: {r_el} s')
+#res_rad = []
+#for i in range(len(chunks)):
+#   rst = time.time() 
+#   fs_rad = fexec.map(radiation_interpolation, chunks[i], runtime_memory=2048)
+#   res_rad.append(fexec.get_result(fs=fs_rad))
+#   r_el = time.time() - rst
+#   print(f'Iteration {i} time: {r_el} s')
 
-#s_rad = fexec.map(radiation_interpolation, chunks, runtime_memory=2048)
-#es_rad = fexec.get_result(fs=fs_rad)
+new_chunks = []
+
+for index, chunk in enumerate(chunks):
+    number_to_add = index + 1
+    new_chunk = chunk + (number_to_add,)
+    new_chunks.append(new_chunk)
+
+#print(new_chunks)
+
+st4 = time.time()
+fs_rad = fexec1.map(radiation_interpolation, chunks, runtime_memory=2048)
+res_rad = fexec1.get_result(fs=fs_rad)
+time_stage_4 = time.time() - st4
+print(f'Stage 4: {time_stage_4}')
+
+st5 = time.time()
 fs_temp = fexec.map(map_interpolation, chunks, extra_args=('temp', ), runtime_memory=2048)
 res_temp = fexec.get_result(fs=fs_temp)
+time_stage_5 = time.time() - st5
+print(f'Stage 5: {time_stage_5}')
+
+st6 = time.time()
 fs_humi = fexec.map(map_interpolation, chunks, extra_args=('humi', ), runtime_memory=2048)
 res_humi = fexec.get_result(fs=fs_humi)
+time_stage_6 = time.time() - st6
+print(f'Stage 6: {time_stage_6}')
+
+st7 = time.time()
 fs_wind = fexec.map(map_interpolation, chunks, extra_args=('wind', ), runtime_memory=2048)
 res_wind = fexec.get_result(fs=fs_wind)
+time_stage_7 = time.time() - st7
+print(f'Stage 7: {time_stage_7}')
 
 res_flatten = []
 for l in [res_rad, res_temp, res_humi, res_wind]:
     for elem in l:
         for sub_elem in elem:
-           #res_flatten.append(sub_elem)
-           if l == res_rad:
-                for e in sub_elem:
-                    res_flatten.append(e)
-           else: res_flatten.append(sub_elem)
+           res_flatten.append(sub_elem)
+           # if l == res_rad:
+           #      for e in sub_elem:
+           #          res_flatten.append(e)
+           # else: res_flatten.append(sub_elem)
 
-print(res_flatten)
+#print(res_flatten)
 
 grouped_chunks = collections.defaultdict(list)
 
 for chunk_result in res_flatten:
     tile_key, data_field, block_x, block_y, co = chunk_result
     grouped_chunks[(tile_key, data_field)].append((block_x, block_y, co))
-print(grouped_chunks)
+#print(grouped_chunks)
 
 def merge_blocks(tile_data, chunks, storage):
     from rasterio.windows import Window
@@ -407,8 +441,12 @@ iterdata = []
 for (tile_id, data_field), chunks in grouped_chunks.items():
     iterdata.append(((tile_id, data_field), chunks))
 
+st8 = time.time()
 fs_merged = fexec.map(merge_blocks, iterdata, runtime_memory=2048)
 tiles_merged = fexec.get_result(fs=fs_merged)
+time_stage_8 = time.time() - st8
+print(f'Stage 8: {time_stage_8}')
+
 tile_keys_merged = set([os.path.basename(t) for t in tiles_merged])
 print(tile_keys_merged)
 
@@ -581,8 +619,11 @@ def combine_calculations(tile_key, storage):
         storage.put_object(bucket=DATA_BUCKET, key=output_key, body=output_f)
     return output_key
 
+st9 = time.time()
 fs_eva = fexec.map(combine_calculations, tile_keys_merged, runtime_memory=2048)
 res_eva = fexec.get_result(fs=fs_eva)
+time_stage_9 = time.time() - st9
+print(f'Stage 9: {time_stage_9}')
 print(res_eva)
 
 print(f'Files: {len(dtm_asc_keys)}')
