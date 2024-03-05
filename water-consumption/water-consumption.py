@@ -13,6 +13,7 @@ import collections
 import datetime
 import os
 import shutil
+import psutil
 import math
 import numpy as np
 import pandas as pd
@@ -26,11 +27,52 @@ import os
 import time
 import sys
 import tempfile
+import pickle
 import concurrent.futures
 from IPython.display import Image
 import matplotlib.pyplot as plt
 from lithops.storage import Storage
 from lithops.storage.utils import StorageNoSuchKeyError
+
+
+def get_stats(fexec, time, stage):
+    stats = [f.stats for f in fexec.futures]
+
+    worker_func_cpu_usage_values = [stat['worker_func_cpu_usage'] for stat in stats]
+    worker_func_cpu_usage = np.mean(worker_func_cpu_usage_values)
+    worker_func_cpu_usage_std = np.std(worker_func_cpu_usage_values)
+
+    worker_func_sent_net_io = sum([stat['worker_func_sent_net_io'] for stat in stats])
+    worker_func_recv_net_io = sum([stat['worker_func_recv_net_io'] for stat in stats])
+
+    gbxms_price = 0.0000000167
+    sum_total_time = sum([stat['worker_exec_time'] for stat in stats]) * 1000
+    price = gbxms_price * sum_total_time * 2  # Price GB/ms * sum of times in ms * 2 GB
+
+    stats_dict = {
+        'CPU_avg_usage': worker_func_cpu_usage,
+        'CPU_avg_usage_std': worker_func_cpu_usage_std,
+        'CPU_avg_usage_values': worker_func_cpu_usage_values,
+        'Net_io_avg_sent': worker_func_sent_net_io,
+        'Net_io_avg_received': worker_func_recv_net_io,
+        'Price (USD)': price,
+        'Time (s)': time
+    }
+
+    # Save the dictionary to a pickle file
+    # with open(f'stats_{stage}.pickle', 'wb') as pickle_file:
+    #     pickle.dump(stats_dict, pickle_file)
+
+    # Print the statistics
+    print(f'CPU usage values: {worker_func_cpu_usage_values}')
+    print(f'CPU avg usage: {worker_func_cpu_usage}')
+    print(f'CPU avg usage std: {worker_func_cpu_usage_std}')
+    print(f'Net i/o avg sent: {worker_func_sent_net_io}')
+    print(f'Net i/o avg received: {worker_func_recv_net_io}')
+    print(f'Price: {price}')
+    print(f'Time: {time}')
+    return stats_dict
+
 
 AREA_OF_INFLUENCE = 16000
 
@@ -129,6 +171,7 @@ st1 = time.time()
 fs_cog = fexec.map(asc_to_geotiff, os.path.join(STORAGE_PREFIX, DATA_BUCKET, DTM_ASC_PREFIX))
 _, _ = fexec.wait(fs=fs_cog)
 time_stage_1 = time.time() - st1
+stats1 = get_stats(fexec, time_stage_1, '1')
 print(f'Stage 1: {time_stage_1}')
 dtm_geotiff_keys = storage.list_keys(bucket=DATA_BUCKET, prefix=DTM_GEOTIFF_PREFIX)
 print(dtm_geotiff_keys)
@@ -145,6 +188,7 @@ fs_meta = fexec.map(get_tile_meta, os.path.join(STORAGE_PREFIX, DATA_BUCKET, DTM
 tiles_meta = fexec.get_result(fs=fs_meta)
 time_stage_2 = time.time() - st2
 print(f'Stage 2: {time_stage_2}')
+stats2 = get_stats(fexec, time_stage_2, '2')
 print(tiles_meta)
 
 def data_chunker(obj, n_splits, block_x, block_y, storage):
@@ -189,12 +233,13 @@ st3 = time.time()
 chunker_fs = fexec.map(data_chunker, iterdata)
 chunks = fexec.get_result(fs=chunker_fs)
 time_stage_3 = time.time() - st3
+stats3 = get_stats(fexec, time_stage_3, '3')
 print(f'Stage 3: {time_stage_3}')
 #print(chunks)
 
 def compute_solar_irradiation(inputFile, outputFile, crs='32630'):
     # Define grass working set
-    GRASS_GISDB = 'grassdata'
+    GRASS_GISDB = '/home/docker/grassdata'
     GRASS_LOCATION = 'GEOPROCESSING'
     GRASS_MAPSET = 'PERMANENT'
     GRASS_ELEVATIONS_FILENAME = 'ELEVATIONS'
@@ -346,12 +391,12 @@ def map_interpolation(tile_key, block_x, block_y, chunk_cloudobject, data_field,
 #   r_el = time.time() - rst
 #   print(f'Iteration {i} time: {r_el} s')
 
-new_chunks = []
-
-for index, chunk in enumerate(chunks):
-    number_to_add = index + 1
-    new_chunk = chunk + (number_to_add,)
-    new_chunks.append(new_chunk)
+# new_chunks = []
+#
+# for index, chunk in enumerate(chunks):
+#     number_to_add = index + 1
+#     new_chunk = chunk + (number_to_add,)
+#     new_chunks.append(new_chunk)
 
 #print(new_chunks)
 
@@ -359,24 +404,28 @@ st4 = time.time()
 fs_rad = fexec1.map(radiation_interpolation, chunks, runtime_memory=2048)
 res_rad = fexec1.get_result(fs=fs_rad)
 time_stage_4 = time.time() - st4
+stats4 = get_stats(fexec1, time_stage_4, '4')
 print(f'Stage 4: {time_stage_4}')
 
 st5 = time.time()
 fs_temp = fexec.map(map_interpolation, chunks, extra_args=('temp', ), runtime_memory=2048)
 res_temp = fexec.get_result(fs=fs_temp)
 time_stage_5 = time.time() - st5
+stats5 = get_stats(fexec, time_stage_5, '5')
 print(f'Stage 5: {time_stage_5}')
 
 st6 = time.time()
 fs_humi = fexec.map(map_interpolation, chunks, extra_args=('humi', ), runtime_memory=2048)
 res_humi = fexec.get_result(fs=fs_humi)
 time_stage_6 = time.time() - st6
+stats6 = get_stats(fexec, time_stage_6, '6')
 print(f'Stage 6: {time_stage_6}')
 
 st7 = time.time()
 fs_wind = fexec.map(map_interpolation, chunks, extra_args=('wind', ), runtime_memory=2048)
 res_wind = fexec.get_result(fs=fs_wind)
 time_stage_7 = time.time() - st7
+stats7 = get_stats(fexec, time_stage_7, '7')
 print(f'Stage 7: {time_stage_7}')
 
 res_flatten = []
@@ -445,6 +494,7 @@ st8 = time.time()
 fs_merged = fexec.map(merge_blocks, iterdata, runtime_memory=2048)
 tiles_merged = fexec.get_result(fs=fs_merged)
 time_stage_8 = time.time() - st8
+stats8 = get_stats(fexec, time_stage_8, '8')
 print(f'Stage 8: {time_stage_8}')
 
 tile_keys_merged = set([os.path.basename(t) for t in tiles_merged])
@@ -516,7 +566,7 @@ def compute_evapotranspiration_by_shape(tem, hum, win, rad, extrad, dst):
 
     non_arable_land = ['AG', 'CA', 'ED', 'FO', 'IM', 'PA', 'PR', 'ZU', 'ZV']
 
-    with fiona.open('zip://shape.zip') as shape_src:
+    with fiona.open('zip://home/docker/shape.zip') as shape_src:
         for feature in shape_src.filter(bbox=tem.bounds):
             KC = get_kc(feature)
             if KC is not None:
@@ -584,7 +634,7 @@ def combine_calculations(tile_key, storage):
       
     # Download shapefile
     shapefile = storage.get_object(bucket=DATA_BUCKET, key='shapefile_murcia.zip', stream=True)
-    with open('shape.zip', 'wb') as shapf:
+    with open('/home/docker/shape.zip', 'wb') as shapf:
         for chunk in iter(partial(shapefile.read, 200 * 1024 * 1024), ''):
             if not chunk:
                 break
@@ -623,6 +673,7 @@ st9 = time.time()
 fs_eva = fexec.map(combine_calculations, tile_keys_merged, runtime_memory=2048)
 res_eva = fexec.get_result(fs=fs_eva)
 time_stage_9 = time.time() - st9
+stats9 = get_stats(fexec, time_stage_9, '9')
 print(f'Stage 9: {time_stage_9}')
 print(res_eva)
 
@@ -634,6 +685,13 @@ for input_key in dtm_asc_keys:
 print(f'Input size: {round(input_sz / 1_000_000_000, 2)} GB')
 elapsed = time.time() - s_time
 print(f'Total time: {elapsed} s')
+
+stats_list = [stats1, stats2, stats3, stats4, stats5, stats6, stats7, stats8, stats9]
+total_price = sum(stat['Price'] for stat in stats_list)
+print(f'Total price: {total_price} USD')
+
+with open(f'stats_wc-01.pickle', 'wb') as pickle_file:
+    pickle.dump([stats_list, elapsed], pickle_file)
 
 fexec.plot(dst=fexec.executor_id)
 fexec.clean(clean_cloudobjects=True)
