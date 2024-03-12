@@ -14,9 +14,9 @@ This notebook contains a workflow that calculates water consumption from crops u
 To execute this notebook you need:
 
 1. Clone the repository of [cloudbutton_geospatial](https://github.com/cloudbutton/geospatial-usecase/).
-2. Build the conda environment described in [here](https://github.com/cloudbutton/geospatial-usecase/blob/main/INSTALL.md).
+2. Build the conda environment described in [here](https://github.com/cloudbutton/geospatial-usecase/blob/main/INSTALL.md) and install also this [requirements](water-consumption/runtime/requirements.txt).
 3. Setup Lithops to work with [AWS Lambda](https://lithops-cloud.github.io/docs/source/compute_config/aws_lambda.html).
-4. Deploy the AWS Lambda Lithops runtime prepared for this workflow usins [this Dockerfile](https://github.com/iAmJK44/geospatial-usecase/blob/main/water-consumption/runtime/aws_lambda.Dockerfile) stored in the runtime directory:
+4. Deploy the AWS Lambda Lithops runtime prepared for this workflow usins [this Dockerfile](water-consumption/runtime/aws_lambda.Dockerfile) stored in the runtime directory:
    ```bash
    $ lithops runtime build -f aws_lambda.Dockerfile cloudbutton-wc:01
    ```
