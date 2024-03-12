@@ -1,6 +1,6 @@
 # Cloudbutton Geospatial Use Case: NDVI Calculation
 
-This notebook contains a NDVI calculation process that consumes Sentinel2 satellite image from the [AWS Sentinel2 open data repository](https://registry.opendata.aws/sentinel-2/).
+This pipeline contains a NDVI calculation process that consumes Sentinel2 satellite image from the [AWS Sentinel2 open data repository](https://registry.opendata.aws/sentinel-2/).
 
 ## Requirements
 
