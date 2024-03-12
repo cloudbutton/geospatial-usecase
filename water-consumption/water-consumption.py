@@ -8,6 +8,7 @@ from rasterio.windows import Window
 from scipy.spatial import distance_matrix
 from shapely.geometry import Point, MultiPoint, box
 from pprint import pprint
+import subprocess
 import functools
 import collections
 import datetime
@@ -22,7 +23,10 @@ import requests
 import rasterio
 import json
 import random
+import boto3
+import botocore
 import re
+import fiona
 import os
 import time
 import sys
@@ -33,6 +37,7 @@ from IPython.display import Image
 import matplotlib.pyplot as plt
 from lithops.storage import Storage
 from lithops.storage.utils import StorageNoSuchKeyError
+from io import BytesIO
 
 
 def get_stats(fexec, time, stage):
@@ -59,10 +64,6 @@ def get_stats(fexec, time, stage):
         'Time (s)': time
     }
 
-    # Save the dictionary to a pickle file
-    # with open(f'stats_{stage}.pickle', 'wb') as pickle_file:
-    #     pickle.dump(stats_dict, pickle_file)
-
     # Print the statistics
     print(f'CPU usage values: {worker_func_cpu_usage_values}')
     print(f'CPU avg usage: {worker_func_cpu_usage}')
@@ -77,9 +78,9 @@ def get_stats(fexec, time, stage):
 AREA_OF_INFLUENCE = 16000
 
 DATA_BUCKET = 'geospatial-wc'
-COMPUTE_BACKEND = 'localhost'
-STORAGE_BACKEND = 'localhost'
-STORAGE_PREFIX = ''
+COMPUTE_BACKEND = 'aws_lambda'
+STORAGE_BACKEND = 'aws_s3'
+STORAGE_PREFIX = 's3://'
 RUNTIME_MEMORY = 2048
 
 DTM_PREFIX = 'DTMs/'
@@ -95,7 +96,6 @@ DAY_OF_YEAR = 135
 
 storage = lithops.storage.Storage(backend=STORAGE_BACKEND)
 fexec = lithops.FunctionExecutor(backend=COMPUTE_BACKEND, storage=STORAGE_BACKEND, runtime_memory=RUNTIME_MEMORY)
-fexec1 = lithops.FunctionExecutor(backend=COMPUTE_BACKEND, storage=STORAGE_BACKEND, runtime_memory=RUNTIME_MEMORY, worker_processes=1)
 
 s_time = time.time()
 
@@ -139,16 +139,16 @@ def asc_to_geotiff(obj, storage):
     tile_id, _ = os.path.splitext(asc_file_name)
     out_path = os.path.join(tempfile.gettempdir(), tile_id + '.tiff')
     out_key = os.path.join(DTM_GEOTIFF_PREFIX, tile_id + '.tiff')
-    
+
     try:
         out_obj = storage.head_object(bucket=DATA_BUCKET, key=out_key)
     except StorageNoSuchKeyError:
         out_obj = None
-    
+
     if out_obj:
         print(f'GeoTIFF {tile_id} already exists, skipping...')
         return out_key
-    
+
     print(f'Converting {tile_id} to GeoTIFF...')
     with rasterio.open(obj.data_stream, 'r') as src:
         profile = src.profile
@@ -161,10 +161,10 @@ def asc_to_geotiff(obj, storage):
         profile.update(interleave='band')
         with rasterio.open(out_path, 'w', **profile) as dest:
             dest.write(src.read())
-    
+
     with open(out_path, 'rb') as f:
         storage.put_object(bucket=DATA_BUCKET, key=out_key, body=f)
-    
+
     return out_key
 
 st1 = time.time()
@@ -177,8 +177,9 @@ dtm_geotiff_keys = storage.list_keys(bucket=DATA_BUCKET, prefix=DTM_GEOTIFF_PREF
 print(dtm_geotiff_keys)
 
 def get_tile_meta(obj):
+    storage = Storage()
     tile_id = os.path.splitext(os.path.basename(obj.key))[0]
-    with rasterio.open(obj.data_stream, 'r') as src:
+    with rasterio.open(BytesIO(storage.get_cloudobject(obj)), 'r') as src:
         x1, y1 = src.profile['transform'] * (0, 0)
         x2, y2 = src.profile['transform'] * (src.profile['width'], src.profile['height'])
     return tile_id, (x1, y1), (x2, y2)
@@ -194,34 +195,36 @@ print(tiles_meta)
 def data_chunker(obj, n_splits, block_x, block_y, storage):
     tile_key = os.path.basename(obj.key)
     tile_id, _ = os.path.splitext(tile_key)
-    
-    with rasterio.open(obj.data_stream) as src:
+
+    storage = Storage()
+
+    with rasterio.open(BytesIO(storage.get_cloudobject(obj))) as src:
         transform = src.transform
-        
+
         # Compute working window
         step_w = src.width / n_splits
         step_h = src.height / n_splits
-        
+
         offset_h = round(step_h * block_x)
         offset_w = round(step_w * block_y)
-        
+
         profile = src.profile
-        
+
         width = math.ceil(step_w * (block_y + 1) - offset_w)
         height = math.ceil(step_h * (block_x + 1) - offset_h)
-        
+
         profile.update(width=width)
         profile.update(height=height)
-        
+
         window = Window(offset_w, offset_h, width, height)
-        
+
         chunk_file = os.path.join(tempfile.gettempdir(), tile_id + str(block_x) + '_' + str(block_y) + '.tif')
         with rasterio.open(chunk_file, 'w', **profile) as dest:
             dest.write(src.read(window=window))
-    
+
     with open(chunk_file, 'rb') as f:
         co = storage.put_cloudobject(body=f, bucket=DATA_BUCKET)
-    
+
     return (tile_key, block_x, block_y, co)
 
 iterdata = [(os.path.join(STORAGE_PREFIX, DATA_BUCKET, tile), SPLITS, i, j)
@@ -235,11 +238,12 @@ chunks = fexec.get_result(fs=chunker_fs)
 time_stage_3 = time.time() - st3
 stats3 = get_stats(fexec, time_stage_3, '3')
 print(f'Stage 3: {time_stage_3}')
-#print(chunks)
+print(chunks)
 
 def compute_solar_irradiation(inputFile, outputFile, crs='32630'):
     # Define grass working set
-    GRASS_GISDB = '/home/docker/grassdata'
+    GRASS_GISDB = '/tmp/grassdata'
+    #GRASS_GISDB = 'grassdata'
     GRASS_LOCATION = 'GEOPROCESSING'
     GRASS_MAPSET = 'PERMANENT'
     GRASS_ELEVATIONS_FILENAME = 'ELEVATIONS'
@@ -289,10 +293,15 @@ def compute_solar_irradiation(inputFile, outputFile, crs='32630'):
         return extraterrestrial_irradiance
 
 def filter_stations(bounds, stations):
-    total_points = MultiPoint([Point(x,y) for x, y in stations[['X', 'Y']].to_numpy()])
-    intersection = bounds.buffer(AREA_OF_INFLUENCE).intersection(total_points)
+    # print(bounds)
+    # print(stations)
 
-    return stations[[ intersection.contains(point) for point in total_points]]
+    total_points = MultiPoint([Point(x, y) for x, y in stations[['X', 'Y']].to_numpy()])
+    total_points_list = list(total_points.geoms)
+    intersection = bounds.buffer(AREA_OF_INFLUENCE).intersection(total_points)
+    filtered_stations = [point for point in total_points_list if intersection.contains(point)]
+
+    return stations[[point in filtered_stations for point in total_points_list]]
 
 def compute_basic_interpolation(shape, stations, field_value, offset = (0,0)):
     station_pixels = [[pixel[0], pixel[1]] for pixel in stations['pixel'].to_numpy()]
@@ -312,6 +321,7 @@ def radiation_interpolation(tile_key, block_x, block_y, chunk_cloudobject, stora
     # Write tile chunk to file
     chunk_file = os.path.join(tempfile.gettempdir(), tile_id + str(block_x) + '_' + str(block_y) + '.tif')
     print(chunk_file)
+
     with open(chunk_file, 'wb') as f:
         body = storage.get_cloudobject(chunk_cloudobject)
         f.write(body)
@@ -345,14 +355,17 @@ def map_interpolation(tile_key, block_x, block_y, chunk_cloudobject, data_field,
     siam_stream = storage.get_object(DATA_BUCKET, siam_data_key, stream=True)
     siam_data = pd.read_csv(siam_stream)
 
-    chunk = storage.get_cloudobject(chunk_cloudobject, stream=True)
+    # print(siam_data)
 
-    with rasterio.open(chunk) as chunk_src:
+    chunk = storage.get_cloudobject(chunk_cloudobject)
+
+    with rasterio.open(BytesIO(chunk)) as chunk_src:
         transform = chunk_src.transform
         profile = chunk_src.profile
 
         bounding_rect = box(chunk_src.bounds.left, chunk_src.bounds.top, chunk_src.bounds.right, chunk_src.bounds.bottom)
         filtered = pd.DataFrame(filter_stations(bounding_rect, siam_data))
+        #print(filtered)
 
         if filtered.shape[0] == 0:
             return [(tile_key, data_field, block_x, block_y, None)]
@@ -365,6 +378,7 @@ def map_interpolation(tile_key, block_x, block_y, chunk_cloudobject, data_field,
         with rasterio.open(dest_chunk_file, 'w', **profile) as chunk_dest:
             if data_field == 'temp':
                 elevations = chunk_src.read(1)  # Get elevations content
+                print(dest_chunk_file)
                 interpolation = compute_basic_interpolation(elevations.shape, filtered, 'tdet', (0, 0))
                 interpolation += r * (elevations - zdet)
                 chunk_dest.write(np.where(elevations == chunk_src.nodata, np.nan, interpolation), 1)
@@ -383,30 +397,12 @@ def map_interpolation(tile_key, block_x, block_y, chunk_cloudobject, data_field,
 
     return [(tile_key, data_field, block_x, block_y, co)]
 
-#res_rad = []
-#for i in range(len(chunks)):
-#   rst = time.time() 
-#   fs_rad = fexec.map(radiation_interpolation, chunks[i], runtime_memory=2048)
-#   res_rad.append(fexec.get_result(fs=fs_rad))
-#   r_el = time.time() - rst
-#   print(f'Iteration {i} time: {r_el} s')
-
-# new_chunks = []
-#
-# for index, chunk in enumerate(chunks):
-#     number_to_add = index + 1
-#     new_chunk = chunk + (number_to_add,)
-#     new_chunks.append(new_chunk)
-
-#print(new_chunks)
-
 st4 = time.time()
-fs_rad = fexec1.map(radiation_interpolation, chunks, runtime_memory=2048)
-res_rad = fexec1.get_result(fs=fs_rad)
+fs_rad = fexec.map(radiation_interpolation, chunks)
+res_rad = fexec.get_result(fs=fs_rad)
 time_stage_4 = time.time() - st4
-stats4 = get_stats(fexec1, time_stage_4, '4')
+stats4 = get_stats(fexec, time_stage_4, '4')
 print(f'Stage 4: {time_stage_4}')
-
 st5 = time.time()
 fs_temp = fexec.map(map_interpolation, chunks, extra_args=('temp', ), runtime_memory=2048)
 res_temp = fexec.get_result(fs=fs_temp)
@@ -430,6 +426,7 @@ print(f'Stage 7: {time_stage_7}')
 
 res_flatten = []
 for l in [res_rad, res_temp, res_humi, res_wind]:
+#for l in [res_temp, res_humi, res_wind]:
     for elem in l:
         for sub_elem in elem:
            res_flatten.append(sub_elem)
@@ -458,12 +455,12 @@ def merge_blocks(tile_data, chunks, storage):
 
     # Get width and height from original tile
     source_tile_key = os.path.join(DTM_GEOTIFF_PREFIX, tile_key)
-    with rasterio.open(storage.get_object(bucket=DATA_BUCKET, key=source_tile_key, stream=True)) as source_tile:
+    with rasterio.open(BytesIO(storage.get_object(bucket=DATA_BUCKET, key=source_tile_key))) as source_tile:
         height = source_tile.profile['height']
         width = source_tile.profile['width']
 
     # Open first object to obtain profile metadata
-    with rasterio.open(storage.get_cloudobject(chunks[0][2], stream=True)) as chunk_src:
+    with rasterio.open(BytesIO(storage.get_cloudobject(chunks[0][2]))) as chunk_src:
         profile = chunk_src.profile
         profile.update(width=width)
         profile.update(height=height)
@@ -473,7 +470,7 @@ def merge_blocks(tile_data, chunks, storage):
     with rasterio.open(merged_file, 'w', **profile) as dest:
         for chunk in chunks:
             j, i, co = chunk
-            with rasterio.open(storage.get_cloudobject(co, stream=True)) as src:
+            with rasterio.open(BytesIO(storage.get_cloudobject(co))) as src:
                 step_w = math.floor(width / SPLITS)
                 step_h = math.floor(height / SPLITS)
                 curr_window = Window(round(step_w * i), round(step_h * j), src.width, src.height)
@@ -566,7 +563,8 @@ def compute_evapotranspiration_by_shape(tem, hum, win, rad, extrad, dst):
 
     non_arable_land = ['AG', 'CA', 'ED', 'FO', 'IM', 'PA', 'PR', 'ZU', 'ZV']
 
-    with fiona.open('zip://home/docker/shape.zip') as shape_src:
+    #with fiona.open('zip://home/docker/shape.zip') as shape_src:
+    with fiona.open('zip:///tmp/shape.zip') as shape_src:
         for feature in shape_src.filter(bbox=tem.bounds):
             KC = get_kc(feature)
             if KC is not None:
@@ -629,38 +627,37 @@ def compute_global_evapotranspiration(tem, hum, win, rad, extrad, dst):
         dst.write(np.where(temperatures == tem.nodata, dst.nodata, etc), 1, window=window)
 
 def combine_calculations(tile_key, storage):
-    
     from functools import partial
       
     # Download shapefile
     shapefile = storage.get_object(bucket=DATA_BUCKET, key='shapefile_murcia.zip', stream=True)
-    with open('/home/docker/shape.zip', 'wb') as shapf:
+    #with open('/home/docker/shape.zip', 'wb') as shapf:
+    with open('/tmp/shape.zip', 'wb') as shapf:
         for chunk in iter(partial(shapefile.read, 200 * 1024 * 1024), ''):
             if not chunk:
                 break
             shapf.write(chunk)
     try:
-        temp = storage.get_object(bucket=DATA_BUCKET, key=os.path.join(DTM_PREFIX, 'temp', tile_key), stream=True)
-        humi = storage.get_object(bucket=DATA_BUCKET, key=os.path.join(DTM_PREFIX, 'humi', tile_key), stream=True)
-        rad = storage.get_object(bucket=DATA_BUCKET, key=os.path.join(DTM_PREFIX, 'rad', tile_key), stream=True)
-        extrad = storage.get_object(bucket=DATA_BUCKET, key=os.path.join(DTM_PREFIX, 'extr', tile_key), stream=True)
-        wind = storage.get_object(bucket=DATA_BUCKET, key=os.path.join(DTM_PREFIX, 'wind', tile_key), stream=True)
+        temp = storage.get_object(bucket=DATA_BUCKET, key=os.path.join(DTM_PREFIX, 'temp', tile_key))
+        humi = storage.get_object(bucket=DATA_BUCKET, key=os.path.join(DTM_PREFIX, 'humi', tile_key))
+        rad = storage.get_object(bucket=DATA_BUCKET, key=os.path.join(DTM_PREFIX, 'rad', tile_key))
+        extrad = storage.get_object(bucket=DATA_BUCKET, key=os.path.join(DTM_PREFIX, 'extr', tile_key))
+        wind = storage.get_object(bucket=DATA_BUCKET, key=os.path.join(DTM_PREFIX, 'wind', tile_key))
     except StorageNoSuchKeyError:
         print("Storage error")
         return None
     
     output_file = os.path.join(tempfile.gettempdir(), 'eva' + '_' + tile_key)
-    with rasterio.open(temp) as temp_raster:
-        with rasterio.open(humi) as humi_raster:
-            with rasterio.open(rad) as rad_raster:
-                with rasterio.open(extrad) as extrad_raster:
-                    with rasterio.open(wind) as wind_raster:
+    with rasterio.open(BytesIO(temp)) as temp_raster:
+        with rasterio.open(BytesIO(humi)) as humi_raster:
+            with rasterio.open(BytesIO(rad)) as rad_raster:
+                with rasterio.open(BytesIO(extrad)) as extrad_raster:
+                    with rasterio.open(BytesIO(wind)) as wind_raster:
                         profile = temp_raster.profile
                         profile.update(nodata=0)
                         with rasterio.open(output_file, 'w+', **profile) as dst:
 #                             compute_global_evapotranspiration(temp_raster, humi_raster, wind_raster,
 #                                                               rad_raster, extrad_raster, dst)
-                            print("in-loop")
                             compute_evapotranspiration_by_shape(temp_raster, humi_raster, wind_raster,
                                                                 rad_raster, extrad_raster, dst)
     
@@ -670,7 +667,7 @@ def combine_calculations(tile_key, storage):
     return output_key
 
 st9 = time.time()
-fs_eva = fexec.map(combine_calculations, tile_keys_merged, runtime_memory=2048)
+fs_eva = fexec.map(combine_calculations, tile_keys_merged)
 res_eva = fexec.get_result(fs=fs_eva)
 time_stage_9 = time.time() - st9
 stats9 = get_stats(fexec, time_stage_9, '9')
@@ -687,11 +684,11 @@ elapsed = time.time() - s_time
 print(f'Total time: {elapsed} s')
 
 stats_list = [stats1, stats2, stats3, stats4, stats5, stats6, stats7, stats8, stats9]
-total_price = sum(stat['Price'] for stat in stats_list)
+total_price = sum(stat['Price (USD)'] for stat in stats_list)
 print(f'Total price: {total_price} USD')
 
-with open(f'stats_wc-01.pickle', 'wb') as pickle_file:
-    pickle.dump([stats_list, elapsed], pickle_file)
+with open(f'stats_wc-aws-x1.pickle', 'wb') as pickle_file:
+    pickle.dump([stats_list, elapsed, total_price], pickle_file)
 
 fexec.plot(dst=fexec.executor_id)
 fexec.clean(clean_cloudobjects=True)
