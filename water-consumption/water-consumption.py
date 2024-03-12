@@ -692,4 +692,3 @@ with open(f'stats_wc-aws-x1.pickle', 'wb') as pickle_file:
 
 fexec.plot(dst=fexec.executor_id)
 fexec.clean(clean_cloudobjects=True)
-fexec.job_summary()
