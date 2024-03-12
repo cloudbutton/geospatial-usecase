@@ -58,8 +58,8 @@ def get_stats(fexec, time, stage):
         'CPU_avg_usage': worker_func_cpu_usage,
         'CPU_avg_usage_std': worker_func_cpu_usage_std,
         'CPU_avg_usage_values': worker_func_cpu_usage_values,
-        'Net_io_avg_sent': worker_func_sent_net_io,
-        'Net_io_avg_received': worker_func_recv_net_io,
+        'Net_io_total_sent': worker_func_sent_net_io,
+        'Net_io_total_received': worker_func_recv_net_io,
         'Price (USD)': price,
         'Time (s)': time
     }
@@ -68,8 +68,8 @@ def get_stats(fexec, time, stage):
     print(f'CPU usage values: {worker_func_cpu_usage_values}')
     print(f'CPU avg usage: {worker_func_cpu_usage}')
     print(f'CPU avg usage std: {worker_func_cpu_usage_std}')
-    print(f'Net i/o avg sent: {worker_func_sent_net_io}')
-    print(f'Net i/o avg received: {worker_func_recv_net_io}')
+    print(f'Net i/o sent: {worker_func_sent_net_io}')
+    print(f'Net i/o received: {worker_func_recv_net_io}')
     print(f'Price: {price}')
     print(f'Time: {time}')
     return stats_dict
@@ -293,9 +293,6 @@ def compute_solar_irradiation(inputFile, outputFile, crs='32630'):
         return extraterrestrial_irradiance
 
 def filter_stations(bounds, stations):
-    # print(bounds)
-    # print(stations)
-
     total_points = MultiPoint([Point(x, y) for x, y in stations[['X', 'Y']].to_numpy()])
     total_points_list = list(total_points.geoms)
     intersection = bounds.buffer(AREA_OF_INFLUENCE).intersection(total_points)
@@ -426,14 +423,9 @@ print(f'Stage 7: {time_stage_7}')
 
 res_flatten = []
 for l in [res_rad, res_temp, res_humi, res_wind]:
-#for l in [res_temp, res_humi, res_wind]:
     for elem in l:
         for sub_elem in elem:
            res_flatten.append(sub_elem)
-           # if l == res_rad:
-           #      for e in sub_elem:
-           #          res_flatten.append(e)
-           # else: res_flatten.append(sub_elem)
 
 #print(res_flatten)
 
