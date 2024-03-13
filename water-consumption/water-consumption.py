@@ -39,42 +39,7 @@ from lithops.storage import Storage
 from lithops.storage.utils import StorageNoSuchKeyError
 from io import BytesIO
 
-
-def get_stats(fexec, time, stage):
-    stats = [f.stats for f in fexec.futures]
-
-    worker_func_cpu_usage_values = [stat['worker_func_cpu_usage'] for stat in stats]
-    worker_func_cpu_usage = np.mean(worker_func_cpu_usage_values)
-    worker_func_cpu_usage_std = np.std(worker_func_cpu_usage_values)
-
-    worker_func_sent_net_io = sum([stat['worker_func_sent_net_io'] for stat in stats])
-    worker_func_recv_net_io = sum([stat['worker_func_recv_net_io'] for stat in stats])
-
-    gbxms_price = 0.0000000167
-    sum_total_time = sum([stat['worker_exec_time'] for stat in stats]) * 1000
-    price = gbxms_price * sum_total_time * 2  # Price GB/ms * sum of times in ms * 2 GB
-
-    stats_dict = {
-        'CPU_avg_usage': worker_func_cpu_usage,
-        'CPU_avg_usage_std': worker_func_cpu_usage_std,
-        'CPU_avg_usage_values': worker_func_cpu_usage_values,
-        'Net_io_total_sent': worker_func_sent_net_io,
-        'Net_io_total_received': worker_func_recv_net_io,
-        'Price (USD)': price,
-        'Time (s)': time
-    }
-
-    # Print the statistics
-    print(f'CPU usage values: {worker_func_cpu_usage_values}')
-    print(f'CPU avg usage: {worker_func_cpu_usage}')
-    print(f'CPU avg usage std: {worker_func_cpu_usage_std}')
-    print(f'Net i/o sent: {worker_func_sent_net_io}')
-    print(f'Net i/o received: {worker_func_recv_net_io}')
-    print(f'Price: {price}')
-    print(f'Time: {time}')
-    return stats_dict
-
-
+# WORKFLOW PARAMETERS
 AREA_OF_INFLUENCE = 16000
 
 DATA_BUCKET = 'geospatial-wc'
@@ -99,6 +64,8 @@ fexec = lithops.FunctionExecutor(backend=COMPUTE_BACKEND, storage=STORAGE_BACKEN
 
 s_time = time.time()
 
+# DATA PREPARATION
+# SIAM data
 siam_data_key = 'siam_data.csv'
 try:
     siam_data_head = storage.head_object(bucket=DATA_BUCKET, key=siam_data_key)
@@ -108,6 +75,7 @@ except StorageNoSuchKeyError:
     with open(siam_data_key, 'rb') as f:
         storage.put_object(bucket=DATA_BUCKET, key=siam_data_key, body=f)
 
+# Shapefile
 shapefile_key = 'shapefile_murcia.zip'
 try:
     shapefile_head = storage.head_object(bucket=DATA_BUCKET, key=shapefile_key)
@@ -117,7 +85,10 @@ except StorageNoSuchKeyError:
     with open(shapefile_key, 'rb') as f:
         storage.put_object(bucket=DATA_BUCKET, key=shapefile_key, body=f)
 
+# DIGITAL TERRAIN MODELS
 dtm_asc_keys = storage.list_keys(bucket=DATA_BUCKET, prefix=DTM_ASC_PREFIX)
+
+# Find downloaded MDTs:
 local_dtm_input = 'input_DTMs'
 local_dtms = [os.path.join(local_dtm_input, dtm) for dtm in os.listdir(local_dtm_input) if dtm.endswith('.tif')]
 
@@ -134,6 +105,7 @@ def upload_file(file_path):
 with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
     result = list(pool.map(upload_file, local_dtms))
 
+# Convert ASCII or tif raster files to Cloud Optimized GeoTIFF:
 def asc_to_geotiff(obj, storage):
     asc_file_name = os.path.basename(obj.key)
     tile_id, _ = os.path.splitext(asc_file_name)
@@ -150,7 +122,7 @@ def asc_to_geotiff(obj, storage):
         return out_key
 
     print(f'Converting {tile_id} to GeoTIFF...')
-    with rasterio.open(obj.data_stream, 'r') as src:
+    with rasterio.open(BytesIO(storage.get_cloudobject(obj)), 'r') as src:
         profile = src.profile
         # Cloud optimized GeoTiff parameters
         profile.update(driver='GTiff')
@@ -167,15 +139,12 @@ def asc_to_geotiff(obj, storage):
 
     return out_key
 
-st1 = time.time()
 fs_cog = fexec.map(asc_to_geotiff, os.path.join(STORAGE_PREFIX, DATA_BUCKET, DTM_ASC_PREFIX))
 _, _ = fexec.wait(fs=fs_cog)
-time_stage_1 = time.time() - st1
-stats1 = get_stats(fexec, time_stage_1, '1')
-print(f'Stage 1: {time_stage_1}')
 dtm_geotiff_keys = storage.list_keys(bucket=DATA_BUCKET, prefix=DTM_GEOTIFF_PREFIX)
 print(dtm_geotiff_keys)
 
+# Get bounds and tile ID for every tile:
 def get_tile_meta(obj):
     storage = Storage()
     tile_id = os.path.splitext(os.path.basename(obj.key))[0]
@@ -184,14 +153,12 @@ def get_tile_meta(obj):
         x2, y2 = src.profile['transform'] * (src.profile['width'], src.profile['height'])
     return tile_id, (x1, y1), (x2, y2)
 
-st2 = time.time()
 fs_meta = fexec.map(get_tile_meta, os.path.join(STORAGE_PREFIX, DATA_BUCKET, DTM_GEOTIFF_PREFIX))
 tiles_meta = fexec.get_result(fs=fs_meta)
-time_stage_2 = time.time() - st2
-print(f'Stage 2: {time_stage_2}')
-stats2 = get_stats(fexec, time_stage_2, '2')
 print(tiles_meta)
 
+# RASTER DATA INTERPOLATION
+# Split data tiles in subtiles for increased parallelism:
 def data_chunker(obj, n_splits, block_x, block_y, storage):
     tile_key = os.path.basename(obj.key)
     tile_id, _ = os.path.splitext(tile_key)
@@ -232,14 +199,11 @@ iterdata = [(os.path.join(STORAGE_PREFIX, DATA_BUCKET, tile), SPLITS, i, j)
 print(f'Chunking {len(dtm_geotiff_keys)} tiles in {SPLITS * SPLITS} chunks each using {len(iterdata)} functions')
 print(f"\nIterdata: {iterdata}\n")
 
-st3 = time.time()
 chunker_fs = fexec.map(data_chunker, iterdata)
 chunks = fexec.get_result(fs=chunker_fs)
-time_stage_3 = time.time() - st3
-stats3 = get_stats(fexec, time_stage_3, '3')
-print(f'Stage 3: {time_stage_3}')
 print(chunks)
 
+# Compute solar irradiation for a given day of year using GRASS libraries:
 def compute_solar_irradiation(inputFile, outputFile, crs='32630'):
     # Define grass working set
     GRASS_GISDB = '/tmp/grassdata'
@@ -292,6 +256,7 @@ def compute_solar_irradiation(inputFile, outputFile, crs='32630'):
         
         return extraterrestrial_irradiance
 
+# Get stations contained in the area of interest:
 def filter_stations(bounds, stations):
     total_points = MultiPoint([Point(x, y) for x, y in stations[['X', 'Y']].to_numpy()])
     total_points_list = list(total_points.geoms)
@@ -300,6 +265,7 @@ def filter_stations(bounds, stations):
 
     return stations[[point in filtered_stations for point in total_points_list]]
 
+# Inverse Distance Weighting interpolation:
 def compute_basic_interpolation(shape, stations, field_value, offset = (0,0)):
     station_pixels = [[pixel[0], pixel[1]] for pixel in stations['pixel'].to_numpy()]
 
@@ -311,6 +277,7 @@ def compute_basic_interpolation(shape, stations, field_value, offset = (0,0)):
 
     return np.dot(weights.T, stations[field_value].to_numpy()).reshape(shape).astype('float32')
 
+# Interpolate temperatures from a subset of the tile:
 def radiation_interpolation(tile_key, block_x, block_y, chunk_cloudobject, storage):
     tile_id, _ = os.path.splitext(tile_key)
     print(tile_id)
@@ -394,32 +361,17 @@ def map_interpolation(tile_key, block_x, block_y, chunk_cloudobject, data_field,
 
     return [(tile_key, data_field, block_x, block_y, co)]
 
-st4 = time.time()
 fs_rad = fexec.map(radiation_interpolation, chunks)
 res_rad = fexec.get_result(fs=fs_rad)
-time_stage_4 = time.time() - st4
-stats4 = get_stats(fexec, time_stage_4, '4')
-print(f'Stage 4: {time_stage_4}')
-st5 = time.time()
+
 fs_temp = fexec.map(map_interpolation, chunks, extra_args=('temp', ), runtime_memory=2048)
 res_temp = fexec.get_result(fs=fs_temp)
-time_stage_5 = time.time() - st5
-stats5 = get_stats(fexec, time_stage_5, '5')
-print(f'Stage 5: {time_stage_5}')
 
-st6 = time.time()
 fs_humi = fexec.map(map_interpolation, chunks, extra_args=('humi', ), runtime_memory=2048)
 res_humi = fexec.get_result(fs=fs_humi)
-time_stage_6 = time.time() - st6
-stats6 = get_stats(fexec, time_stage_6, '6')
-print(f'Stage 6: {time_stage_6}')
 
-st7 = time.time()
 fs_wind = fexec.map(map_interpolation, chunks, extra_args=('wind', ), runtime_memory=2048)
 res_wind = fexec.get_result(fs=fs_wind)
-time_stage_7 = time.time() - st7
-stats7 = get_stats(fexec, time_stage_7, '7')
-print(f'Stage 7: {time_stage_7}')
 
 res_flatten = []
 for l in [res_rad, res_temp, res_humi, res_wind]:
@@ -436,6 +388,7 @@ for chunk_result in res_flatten:
     grouped_chunks[(tile_key, data_field)].append((block_x, block_y, co))
 #print(grouped_chunks)
 
+# Join split subsets into a tile:
 def merge_blocks(tile_data, chunks, storage):
     from rasterio.windows import Window
 
@@ -479,18 +432,14 @@ iterdata = []
 for (tile_id, data_field), chunks in grouped_chunks.items():
     iterdata.append(((tile_id, data_field), chunks))
 
-st8 = time.time()
 fs_merged = fexec.map(merge_blocks, iterdata, runtime_memory=2048)
 tiles_merged = fexec.get_result(fs=fs_merged)
-time_stage_8 = time.time() - st8
-stats8 = get_stats(fexec, time_stage_8, '8')
-print(f'Stage 8: {time_stage_8}')
 
 tile_keys_merged = set([os.path.basename(t) for t in tiles_merged])
 print(tile_keys_merged)
 
 
-# Computation of potential evaporation
+# COMPUTATION OF POTENTIAL EVAPORATION
 def compute_crop_evapotranspiration(temperatures,
                                     humidities,
                                     wind_speeds,
@@ -658,13 +607,28 @@ def combine_calculations(tile_key, storage):
         storage.put_object(bucket=DATA_BUCKET, key=output_key, body=output_f)
     return output_key
 
-st9 = time.time()
 fs_eva = fexec.map(combine_calculations, tile_keys_merged)
 res_eva = fexec.get_result(fs=fs_eva)
-time_stage_9 = time.time() - st9
-stats9 = get_stats(fexec, time_stage_9, '9')
-print(f'Stage 9: {time_stage_9}')
 print(res_eva)
+
+# PLOT RESULT
+tile = res_eva[0]
+tile_key = os.path.basename(tile)
+tile_id, _ = os.path.splitext(tile_key)
+
+from matplotlib import pyplot as plt
+
+fig, ax = plt.subplots()
+
+with rasterio.open(BytesIO(storage.get_object(bucket=DATA_BUCKET, key=tile))) as src:
+    arr = src.read(1, out_shape=(src.height, src.width))
+    ax.set_title(tile_id)
+    img = ax.imshow(arr, cmap='Greens')
+    fig.colorbar(img, shrink=0.5)
+
+fig.set_size_inches(18.5, 10.5)
+plt.savefig(f'{tile_key}.png')
+
 
 print(f'Files: {len(dtm_asc_keys)}')
 input_sz = 0
@@ -675,12 +639,11 @@ print(f'Input size: {round(input_sz / 1_000_000_000, 2)} GB')
 elapsed = time.time() - s_time
 print(f'Total time: {elapsed} s')
 
-stats_list = [stats1, stats2, stats3, stats4, stats5, stats6, stats7, stats8, stats9]
-total_price = sum(stat['Price (USD)'] for stat in stats_list)
-print(f'Total price: {total_price} USD')
-
-with open(f'stats_wc-aws-x1.pickle', 'wb') as pickle_file:
-    pickle.dump([stats_list, elapsed, total_price], pickle_file)
+stats = [f.stats for f in fexec.futures]
+gbxms_price = 0.0000000167
+sum_total_time = sum([stat['worker_exec_time'] for stat in stats]) * 1000
+price = gbxms_price * sum_total_time * 2  # Price GB/ms * sum of times in ms * 2 GB
+print(f'Total price: {price} USD')
 
 fexec.plot(dst=fexec.executor_id)
 fexec.clean(clean_cloudobjects=True)
