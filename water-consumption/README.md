@@ -31,3 +31,5 @@ To execute this notebook you need:
    ```bash
    $ python3 water-consumption.py
    ```
+
+**NOTE:** It is possible to increase parallelism by modifying the `SPLITS = 3` variable, which is the number of tiles (SPLITS ^ 2) in which we chunk each file.
