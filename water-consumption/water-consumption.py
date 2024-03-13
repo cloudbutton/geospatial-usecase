@@ -57,7 +57,7 @@ r = -0.0056
 zdet = 2000
 
 date = datetime.date(2022, 5, 15)
-DAY_OF_YEAR = 135 
+DAY_OF_YEAR = 135
 
 storage = lithops.storage.Storage(backend=STORAGE_BACKEND)
 fexec = lithops.FunctionExecutor(backend=COMPUTE_BACKEND, storage=STORAGE_BACKEND, runtime_memory=RUNTIME_MEMORY)
@@ -219,41 +219,41 @@ def compute_solar_irradiation(inputFile, outputFile, crs='32630'):
     import grass.script.setup as gsetup
     from grass.pygrass.modules.shortcuts import general
     from grass.pygrass.modules.shortcuts import raster
-    
+
     os.environ.update(dict(GRASS_COMPRESS_NULLS='1'))
 
     # Clean previously processed data
     if os.path.isdir(GRASS_GISDB):
         shutil.rmtree(GRASS_GISDB)
-    
+
     with Session(gisdb=GRASS_GISDB, location=GRASS_LOCATION, mapset=GRASS_MAPSET, create_opts='EPSG:32630') as ses:
         # Set project projection to match elevation raster projection
-        general.proj(epsg=crs, flags='c') 
+        general.proj(epsg=crs, flags='c')
         # Load raster file into working directory
-        raster.import_(input=inputFile, output=GRASS_ELEVATIONS_FILENAME, flags='o')    
-        
+        raster.import_(input=inputFile, output=GRASS_ELEVATIONS_FILENAME, flags='o')
+
         # Set project region to match raster region
-        general.region(raster=GRASS_ELEVATIONS_FILENAME, flags='s')    
+        general.region(raster=GRASS_ELEVATIONS_FILENAME, flags='s')
         # Calculate solar irradiation
         gscript.run_command('r.slope.aspect', elevation=GRASS_ELEVATIONS_FILENAME,
                             slope='slope', aspect='aspect')
         gscript.run_command('r.sun', elevation=GRASS_ELEVATIONS_FILENAME,
                             slope='slope', aspect='aspect', beam_rad='beam',
                             step=1, day=DAY_OF_YEAR)
-        
+
         # Get extraterrestrial irradiation from history metadata
         regex = re.compile(r'\d+\.\d+')
         output = gscript.read_command("r.info", flags="h", map=["beam"])
         splits = str(output).split('\n')
         line = next(filter(lambda line: 'Extraterrestrial' in line, splits))
         extraterrestrial_irradiance = float(regex.search(line)[0])
-        
+
         # Export generated results into a GeoTiff file
         if os.path.isfile(outputFile):
             os.remove(outputFile)
 
         raster.out_gdal(input='beam', output=outputFile)
-        
+
         return extraterrestrial_irradiance
 
 # Get stations contained in the area of interest:
@@ -569,7 +569,7 @@ def compute_global_evapotranspiration(tem, hum, win, rad, extrad, dst):
 
 def combine_calculations(tile_key, storage):
     from functools import partial
-      
+
     # Download shapefile
     shapefile = storage.get_object(bucket=DATA_BUCKET, key='shapefile_murcia.zip', stream=True)
     #with open('/home/docker/shape.zip', 'wb') as shapf:
@@ -587,7 +587,7 @@ def combine_calculations(tile_key, storage):
     except StorageNoSuchKeyError:
         print("Storage error")
         return None
-    
+
     output_file = os.path.join(tempfile.gettempdir(), 'eva' + '_' + tile_key)
     with rasterio.open(BytesIO(temp)) as temp_raster:
         with rasterio.open(BytesIO(humi)) as humi_raster:
@@ -601,7 +601,7 @@ def combine_calculations(tile_key, storage):
 #                                                               rad_raster, extrad_raster, dst)
                             compute_evapotranspiration_by_shape(temp_raster, humi_raster, wind_raster,
                                                                 rad_raster, extrad_raster, dst)
-    
+
     output_key = os.path.join(DTM_PREFIX, 'eva', tile_key)
     with open(output_file, 'rb') as output_f:
         storage.put_object(bucket=DATA_BUCKET, key=output_key, body=output_f)
@@ -629,8 +629,8 @@ with rasterio.open(BytesIO(storage.get_object(bucket=DATA_BUCKET, key=tile))) as
 fig.set_size_inches(18.5, 10.5)
 plt.savefig(f'{tile_key}.png')
 
-
-print(f'Files: {len(dtm_asc_keys)}')
+files = storage.list_keys(bucket=DATA_BUCKET, prefix=DTM_ASC_PREFIX)
+print(f'Files: {len(files)}')
 input_sz = 0
 for input_key in dtm_asc_keys:
     meta = storage.head_object(bucket=DATA_BUCKET, key=input_key)
