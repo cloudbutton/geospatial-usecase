@@ -19,9 +19,9 @@ google-auth==2.6.6
 grass-session==0.5
 greenlet==1.1.2
 html2text==2020.1.16
-ibm-cos-sdk==2.11.0
-ibm-cos-sdk-core==2.11.0
-ibm-cos-sdk-s3transfer==2.11.0
+#ibm-cos-sdk==2.11.0
+#ibm-cos-sdk-core==2.11.0
+#ibm-cos-sdk-s3transfer==2.11.0
 idna==3.3
 importlib-metadata==4.11.4
 itsdangerous==2.1.2
@@ -40,7 +40,7 @@ ps-mem==3.14
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
 pydantic==1.9.1
-pygdal==2.4.0.4
+#pygdal==2.4.0.4
 pyparsing==3.0.9
 pyproj==3.3.1
 python-dateutil==2.8.2
